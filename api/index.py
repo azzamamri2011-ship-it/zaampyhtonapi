@@ -1,10 +1,7 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ytmusicapi import YTMusic
-import yt_dlp
 import time
-import httpx
 
 app = FastAPI()
 
@@ -31,7 +28,6 @@ def format_results(search_results):
             })
     return cleaned_results
 
-
 @app.get("/api/search")
 def search_music(query: str):
     try:
@@ -39,7 +35,6 @@ def search_music(query: str):
         return {"status": "success", "data": format_results(search_results)}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
 
 @app.get("/api/home")
 def get_home_data():
@@ -59,29 +54,5 @@ def get_home_data():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
-@app.get("/api/stream/{video_id}")
-def stream_audio(video_id: str):
-    """
-    Ambil URL audio langsung dari YouTube via yt-dlp,
-    lalu redirect browser ke URL tersebut.
-    """
-    ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'noplaylist': True,
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f'https://www.youtube.com/watch?v={video_id}', download=False)
-            audio_url = info['url']
-        # Redirect ke URL langsung supaya browser bisa streaming native
-        return RedirectResponse(url=audio_url, status_code=302)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal mendapatkan stream: {str(e)}")
-
-
-# Vercel WSGI handler
+# Vercel handler
 handler = app
