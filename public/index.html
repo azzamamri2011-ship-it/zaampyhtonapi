@@ -666,32 +666,73 @@
     </div>
 </nav>
 
-<audio id="audio" preload="auto"></audio>
-<audio id="audio" preload="auto"></audio>
+<!-- ===== YOUTUBE HIDDEN PLAYER ===== -->
 <div id="yt-player-container" style="display:none;"></div>
 <script src="https://www.youtube.com/iframe_api"></script>
 
+<!-- ===== JAVASCRIPT ===== -->
 <script>
 'use strict';
+
 // ── Ganti BASE_URL sesuai domain deploy Vercel kamu ──
 // Contoh: const BASE_URL = 'https://zaammusic.vercel.app';
 // Untuk local dev biarkan kosong ''
 const BASE_URL = '';
+
+/* ─── YouTube IFrame API ─── */
 let ytPlayer;
 function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('yt-player-container', {
         height: '0',
         width: '0',
+        playerVars: {
+            playsinline: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            rel: 0,
+        },
         events: {
             'onStateChange': (event) => {
-                if (event.data === YT.PlayerState.ENDED) {
-                    App.nextTrack();
+                // PLAYING
+                if (event.data === YT.PlayerState.PLAYING) {
+                    State.playing = true;
+                    App._setPlayIcon(true);
+                    $('fp-art').classList.add('playing');
+                    setStreamStatus('', '');
+                    // Avvia il tracker del progresso
+                    App._startProgressTracker();
                 }
+                // PAUSED
+                if (event.data === YT.PlayerState.PAUSED) {
+                    State.playing = false;
+                    App._setPlayIcon(false);
+                    $('fp-art').classList.remove('playing');
+                }
+                // ENDED
+                if (event.data === YT.PlayerState.ENDED) {
+                    $('fp-art').classList.remove('playing');
+                    if (State.repeat) {
+                        ytPlayer.seekTo(0);
+                        ytPlayer.playVideo();
+                    } else {
+                        App.nextTrack();
+                    }
+                }
+                // BUFFERING
+                if (event.data === YT.PlayerState.BUFFERING) {
+                    setStreamStatus('loading', '⏳ Buffering...');
+                }
+            },
+            'onError': (event) => {
+                console.error('YT Error:', event.data);
+                setStreamStatus('error', '❌ Gagal stream');
+                toast('Gagal memuat video YouTube. Coba lagu lain.');
+                App._setPlayIcon(false);
             }
         }
     });
 }
-
 
 /* ─── DB ─── */
 const DB = {
@@ -879,28 +920,9 @@ const App = {
 
     /* ── Player ── */
     play(song, queue = []) {
-    State.currentTrack = song;
-    if (queue.length) State.queue = queue;
-    State.queueIdx = State.queue.findIndex(s => s.videoId === song.videoId);
-
-    // Update UI & Riwayat
-    State.history = [song, ...State.history.filter(h => h.videoId !== song.videoId)].slice(0, 20);
-    DB.set('zaam_history', State.history);
-    App._updatePlayerUI(song);
-
-    // LOGIKA STREAMING YOUTUBE (KODE 1)
-    if (ytPlayer && ytPlayer.loadVideoById) {
-        setStreamStatus('loading', '⏳ Memuat dari YouTube...');
-        ytPlayer.loadVideoById(song.videoId); // Ini yang memutar suara
-        State.playing = true;
-        App._setPlayIcon(true);
-        $('fp-art').classList.add('playing');
-        setStreamStatus('', '');
-    }
-
-    $('mini-player').style.display = 'block';
- }
-
+        State.currentTrack = song;
+        if (queue.length) State.queue = queue;
+        State.queueIdx = State.queue.findIndex(s => s.videoId === song.videoId);
 
         // Add to history
         State.history = [song, ...State.history.filter(h => h.videoId !== song.videoId)].slice(0, 20);
@@ -909,30 +931,20 @@ const App = {
         // Update UI
         App._updatePlayerUI(song);
 
-        // ══ STREAMING via backend /api/stream/{videoId} ══
-        // Backend (index.py) menggunakan yt-dlp untuk ambil URL audio,
-        // lalu redirect browser ke URL tersebut.
-        const streamUrl = `${BASE_URL}/api/stream/${song.videoId}`;
-        setStreamStatus('loading', '⏳ Memuat...');
-
-        audio.pause();
-        audio.src = streamUrl;
-        audio.load();
-
-        audio.play()
-            .then(() => {
-                State.playing = true;
-                App._setPlayIcon(true);
-                $('fp-art').classList.add('playing');
-                setStreamStatus('', '');
-            })
-            .catch(err => {
-                console.error('Play error:', err);
-                setStreamStatus('error', '❌ Gagal stream');
-                toast('Gagal memuat audio. Coba lagi.');
-                State.playing = false;
-                App._setPlayIcon(false);
-            });
+        // ══ STREAMING via YouTube IFrame API ══
+        setStreamStatus('loading', '⏳ Memuat dari YouTube...');
+        if (ytPlayer && ytPlayer.loadVideoById) {
+            ytPlayer.loadVideoById(song.videoId);
+            // State.playing akan di-set oleh onStateChange: PLAYING
+        } else {
+            // ytPlayer belum siap, tunggu sebentar lalu coba lagi
+            const waitAndPlay = setInterval(() => {
+                if (ytPlayer && ytPlayer.loadVideoById) {
+                    clearInterval(waitAndPlay);
+                    ytPlayer.loadVideoById(song.videoId);
+                }
+            }, 300);
+        }
 
         $('mini-player').style.display = 'block';
     },
@@ -952,17 +964,17 @@ const App = {
     },
 
     togglePlay() {
-        if (!State.currentTrack) return;
-        if (audio.paused) {
-            audio.play();
-            State.playing = true;
-            App._setPlayIcon(true);
-            $('fp-art').classList.add('playing');
-        } else {
-            audio.pause();
+        if (!State.currentTrack || !ytPlayer) return;
+        if (State.playing) {
+            ytPlayer.pauseVideo();
             State.playing = false;
             App._setPlayIcon(false);
             $('fp-art').classList.remove('playing');
+        } else {
+            ytPlayer.playVideo();
+            State.playing = true;
+            App._setPlayIcon(true);
+            $('fp-art').classList.add('playing');
         }
     },
 
@@ -986,7 +998,12 @@ const App = {
 
     prevTrack() {
         if (!State.queue.length) return;
-        if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+        // Jika sudah lebih dari 3 detik, restart lagu
+        const currentTime = ytPlayer ? ytPlayer.getCurrentTime() : 0;
+        if (currentTime > 3) {
+            if (ytPlayer) ytPlayer.seekTo(0);
+            return;
+        }
         const prev = (State.queueIdx - 1 + State.queue.length) % State.queue.length;
         State.queueIdx = prev;
         App.play(State.queue[prev], State.queue);
@@ -1078,49 +1095,29 @@ const App = {
         $('stat-fav').textContent = State.favorites.length;
     },
 
-    /* ── Audio Events ── */
-    initAudio() {
-        audio.addEventListener('timeupdate', () => {
-            if (!audio.duration) return;
-            const pct = (audio.currentTime / audio.duration) * 100;
+    /* ── YouTube Progress Tracker ── */
+    _progressTimer: null,
+    _startProgressTracker() {
+        clearInterval(App._progressTimer);
+        App._progressTimer = setInterval(() => {
+            if (!ytPlayer || !ytPlayer.getDuration) return;
+            const duration = ytPlayer.getDuration();
+            const current = ytPlayer.getCurrentTime();
+            if (!duration) return;
+            const pct = (current / duration) * 100;
             $('mini-fill').style.width = pct + '%';
             $('fp-range').value = pct;
-            $('fp-now').textContent = fmtTime(audio.currentTime);
-        });
-        audio.addEventListener('loadedmetadata', () => {
-            $('fp-total').textContent = fmtTime(audio.duration);
-        });
-        audio.addEventListener('canplay', () => {
-            // Hapus status loading saat audio siap
-            setStreamStatus('', '');
-        });
-        audio.addEventListener('waiting', () => {
-            setStreamStatus('loading', '⏳ Buffering...');
-        });
-        audio.addEventListener('playing', () => {
-            setStreamStatus('', '');
-            State.playing = true;
-            App._setPlayIcon(true);
-            $('fp-art').classList.add('playing');
-        });
-        audio.addEventListener('ended', () => {
-            $('fp-art').classList.remove('playing');
-            if (State.repeat) { audio.currentTime = 0; audio.play(); return; }
-            App.nextTrack();
-        });
-        audio.addEventListener('pause', () => {
-            State.playing = false;
-            App._setPlayIcon(false);
-            $('fp-art').classList.remove('playing');
-        });
-        audio.addEventListener('error', (e) => {
-            console.error('Audio error:', e);
-            setStreamStatus('error', '❌ Error stream');
-            toast('Gagal stream audio. Coba lagu lain.');
-            App._setPlayIcon(false);
-        });
+            $('fp-now').textContent = fmtTime(current);
+            $('fp-total').textContent = fmtTime(duration);
+        }, 500);
+    },
+
+    initSeekBar() {
         $('fp-range').addEventListener('input', function() {
-            if (audio.duration) audio.currentTime = (this.value / 100) * audio.duration;
+            if (ytPlayer && ytPlayer.getDuration) {
+                const duration = ytPlayer.getDuration();
+                ytPlayer.seekTo((this.value / 100) * duration, true);
+            }
         });
     },
 
@@ -1136,7 +1133,7 @@ const App = {
     /* ── Init ── */
     init() {
         $('home-greeting').textContent = greeting();
-        App.initAudio();
+        App.initSeekBar();
         App.initSearch();
         App.initPWA();
         App.loadHome();
