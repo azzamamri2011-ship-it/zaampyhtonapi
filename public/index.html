@@ -667,15 +667,31 @@
 </nav>
 
 <audio id="audio" preload="auto"></audio>
+<audio id="audio" preload="auto"></audio>
+<div id="yt-player-container" style="display:none;"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
 
-<!-- ===== JAVASCRIPT ===== -->
 <script>
 'use strict';
-
 // ── Ganti BASE_URL sesuai domain deploy Vercel kamu ──
 // Contoh: const BASE_URL = 'https://zaammusic.vercel.app';
 // Untuk local dev biarkan kosong ''
 const BASE_URL = '';
+let ytPlayer;
+function onYouTubeIframeAPIReady() {
+    ytPlayer = new YT.Player('yt-player-container', {
+        height: '0',
+        width: '0',
+        events: {
+            'onStateChange': (event) => {
+                if (event.data === YT.PlayerState.ENDED) {
+                    App.nextTrack();
+                }
+            }
+        }
+    });
+}
+
 
 /* ─── DB ─── */
 const DB = {
@@ -863,9 +879,28 @@ const App = {
 
     /* ── Player ── */
     play(song, queue = []) {
-        State.currentTrack = song;
-        if (queue.length) State.queue = queue;
-        State.queueIdx = State.queue.findIndex(s => s.videoId === song.videoId);
+    State.currentTrack = song;
+    if (queue.length) State.queue = queue;
+    State.queueIdx = State.queue.findIndex(s => s.videoId === song.videoId);
+
+    // Update UI & Riwayat
+    State.history = [song, ...State.history.filter(h => h.videoId !== song.videoId)].slice(0, 20);
+    DB.set('zaam_history', State.history);
+    App._updatePlayerUI(song);
+
+    // LOGIKA STREAMING YOUTUBE (KODE 1)
+    if (ytPlayer && ytPlayer.loadVideoById) {
+        setStreamStatus('loading', '⏳ Memuat dari YouTube...');
+        ytPlayer.loadVideoById(song.videoId); // Ini yang memutar suara
+        State.playing = true;
+        App._setPlayIcon(true);
+        $('fp-art').classList.add('playing');
+        setStreamStatus('', '');
+    }
+
+    $('mini-player').style.display = 'block';
+ }
+
 
         // Add to history
         State.history = [song, ...State.history.filter(h => h.videoId !== song.videoId)].slice(0, 20);
