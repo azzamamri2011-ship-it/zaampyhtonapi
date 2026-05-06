@@ -362,6 +362,90 @@
         .fp-play-btn:active { transform: scale(0.92); }
         .fp-shuffle-active { color: var(--green) !important; }
 
+        /* ========= LYRICS PANEL ========= */
+        .fp-lyrics-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 12px 0; margin-top: 20px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 30px; cursor: pointer;
+            font-size: 12px; font-weight: 800; letter-spacing: 1px;
+            color: var(--gray-light);
+            transition: background 0.2s, color 0.2s;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .fp-lyrics-btn.active {
+            background: rgba(29,185,84,0.15);
+            border-color: rgba(29,185,84,0.4);
+            color: var(--green);
+        }
+        .fp-lyrics-btn i { font-size: 14px; }
+
+        .lyrics-panel {
+            display: none;
+            margin-top: 8px;
+            height: 260px;
+            overflow: hidden;
+            position: relative;
+        }
+        .lyrics-panel.visible { display: block; }
+        .lyrics-panel::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50px;
+            background: linear-gradient(to bottom, rgba(15,15,15,0.95), transparent);
+            z-index: 2; pointer-events: none;
+        }
+        .lyrics-panel::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px;
+            background: linear-gradient(to top, rgba(15,15,15,0.95), transparent);
+            z-index: 2; pointer-events: none;
+        }
+        .lyrics-scroll {
+            height: 100%; overflow-y: auto; scrollbar-width: none;
+            padding: 50px 4px 60px;
+            scroll-behavior: smooth;
+        }
+        .lyrics-scroll::-webkit-scrollbar { display: none; }
+
+        .lyric-line {
+            font-size: 20px; font-weight: 800;
+            color: rgba(255,255,255,0.25);
+            line-height: 1.5; padding: 6px 0;
+            transition: color 0.4s, transform 0.4s, font-size 0.3s;
+            cursor: pointer;
+            text-align: left;
+        }
+        .lyric-line.active {
+            color: #ffffff;
+            font-size: 22px;
+        }
+        .lyric-line.past {
+            color: rgba(255,255,255,0.45);
+        }
+        .lyric-line:empty { height: 16px; }
+
+        .lyrics-loading {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100%; gap: 12px;
+            color: var(--gray); font-size: 13px;
+        }
+        .lyrics-loading .loader-spin { margin: 0; width: 28px; height: 28px; border-width: 2px; }
+
+        .lyrics-empty {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100%; gap: 10px;
+            color: var(--gray); font-size: 13px; text-align: center; padding: 20px;
+        }
+        .lyrics-empty i { font-size: 32px; opacity: 0.3; }
+
+        .lyrics-plain {
+            font-size: 15px; font-weight: 500; line-height: 1.9;
+            color: rgba(255,255,255,0.7); padding: 0 4px;
+        }
+        .lyrics-plain .lyric-plain-line {
+            display: block; padding: 2px 0; transition: color 0.3s;
+        }
+        .lyrics-plain .lyric-plain-line.active { color: #fff; font-weight: 800; }
+
         /* ── Stream status badge ── */
         #stream-status {
             position: absolute; top: 10px; right: 10px;
@@ -642,6 +726,21 @@
             <button class="fp-play-btn" id="fp-play-btn" onclick="App.togglePlay()"><i class="fas fa-play"></i></button>
             <i class="fas fa-step-forward fp-side-btn" onclick="App.nextTrack()"></i>
             <i class="fas fa-redo fp-side-btn" id="fp-repeat" onclick="App.toggleRepeat()"></i>
+        </div>
+
+        <!-- LYRICS BUTTON -->
+        <button class="fp-lyrics-btn" id="fp-lyrics-btn" onclick="Lyrics.toggle()">
+            <i class="fas fa-align-left"></i> LYRICS
+        </button>
+
+        <!-- LYRICS PANEL -->
+        <div class="lyrics-panel" id="lyrics-panel">
+            <div class="lyrics-scroll" id="lyrics-scroll">
+                <div class="lyrics-loading" id="lyrics-loading">
+                    <div class="loader-spin"></div>
+                    <span>Mencari lirik...</span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1141,6 +1240,204 @@ const App = {
 };
 
 document.addEventListener('DOMContentLoaded', App.init);
+
+/* ══════════════════════════════════════════
+   LYRICS MODULE — Spotify-style synced lyrics
+   API: https://api.danzy.web.id/api/search/lyrics?q=
+══════════════════════════════════════════ */
+const Lyrics = {
+    _open: false,
+    _synced: [],       // [{time, text}]
+    _plain: [],        // string[]
+    _hasSynced: false,
+    _timer: null,
+    _currentTrack: null,
+    _activeIdx: -1,
+
+    /* ── Toggle panel ── */
+    toggle() {
+        this._open = !this._open;
+        const panel = $('lyrics-panel');
+        const btn = $('fp-lyrics-btn');
+        panel.classList.toggle('visible', this._open);
+        btn.classList.toggle('active', this._open);
+        if (this._open) {
+            // If new track or not loaded yet
+            if (State.currentTrack && State.currentTrack !== this._currentTrack) {
+                this._currentTrack = State.currentTrack;
+                this.fetch(State.currentTrack.title + ' ' + State.currentTrack.artist);
+            }
+            if (this._hasSynced) this._startSyncTimer();
+        } else {
+            this._stopSyncTimer();
+        }
+    },
+
+    /* ── Called when a new song plays ── */
+    onTrackChange(song) {
+        this._currentTrack = song;
+        this._synced = [];
+        this._plain = [];
+        this._hasSynced = false;
+        this._activeIdx = -1;
+        this._stopSyncTimer();
+        // Reset panel content
+        $('lyrics-scroll').innerHTML = `
+            <div class="lyrics-loading" id="lyrics-loading">
+                <div class="loader-spin"></div>
+                <span>Mencari lirik...</span>
+            </div>`;
+        if (this._open) {
+            this.fetch(song.title + ' ' + song.artist);
+        }
+    },
+
+    /* ── Fetch from Danzy API ── */
+    async fetch(query) {
+        $('lyrics-scroll').innerHTML = `
+            <div class="lyrics-loading">
+                <div class="loader-spin"></div>
+                <span>Mencari lirik...</span>
+            </div>`;
+        try {
+            const url = `https://api.danzy.web.id/api/search/lyrics?q=${encodeURIComponent(query)}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network error');
+            const json = await res.json();
+
+            if (!json.status || !json.result || json.result.length === 0) {
+                this._renderEmpty('Lirik tidak ditemukan 🎵');
+                return;
+            }
+
+            // Pick best result: prefer one with syncedLyrics
+            let chosen = json.result.find(r => r.syncedLyrics) || json.result[0];
+
+            if (chosen.syncedLyrics) {
+                this._parseSynced(chosen.syncedLyrics);
+                this._renderSynced();
+                this._hasSynced = true;
+                if (this._open) this._startSyncTimer();
+            } else if (chosen.plainLyrics) {
+                this._parsePlain(chosen.plainLyrics);
+                this._renderPlain();
+                this._hasSynced = false;
+            } else {
+                this._renderEmpty('Lirik tidak tersedia');
+            }
+        } catch(e) {
+            this._renderEmpty('Gagal memuat lirik 😢');
+        }
+    },
+
+    /* ── Parse synced LRC format ── */
+    _parseSynced(raw) {
+        this._synced = [];
+        const lines = raw.split('\n');
+        const regex = /\[(\d+):(\d+\.\d+)\]\s*(.*)/;
+        lines.forEach(line => {
+            const m = line.match(regex);
+            if (m) {
+                const mins = parseInt(m[1]);
+                const secs = parseFloat(m[2]);
+                const time = mins * 60 + secs;
+                this._synced.push({ time, text: m[3] });
+            }
+        });
+    },
+
+    /* ── Parse plain lyrics ── */
+    _parsePlain(raw) {
+        this._plain = raw.split('\n');
+    },
+
+    /* ── Render synced lines ── */
+    _renderSynced() {
+        const scroll = $('lyrics-scroll');
+        scroll.innerHTML = this._synced.map((l, i) =>
+            `<div class="lyric-line" id="ll-${i}" onclick="Lyrics._seek(${l.time})">${l.text || ''}</div>`
+        ).join('');
+    },
+
+    /* ── Render plain lyrics ── */
+    _renderPlain() {
+        const scroll = $('lyrics-scroll');
+        scroll.innerHTML = `<div class="lyrics-plain">${
+            this._plain.map((l, i) =>
+                `<span class="lyric-plain-line" id="lp-${i}">${l}</span>`
+            ).join('')
+        }</div>`;
+    },
+
+    _renderEmpty(msg) {
+        $('lyrics-scroll').innerHTML = `
+            <div class="lyrics-empty">
+                <i class="fas fa-music"></i>
+                <span>${msg}</span>
+            </div>`;
+    },
+
+    /* ── Seek song to lyric time ── */
+    _seek(time) {
+        if (ytPlayer && ytPlayer.seekTo) {
+            ytPlayer.seekTo(time, true);
+        }
+    },
+
+    /* ── Sync timer ── */
+    _startSyncTimer() {
+        this._stopSyncTimer();
+        this._timer = setInterval(() => this._tick(), 300);
+    },
+
+    _stopSyncTimer() {
+        clearInterval(this._timer);
+        this._timer = null;
+    },
+
+    _tick() {
+        if (!this._hasSynced || !this._synced.length) return;
+        if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+        const cur = ytPlayer.getCurrentTime();
+
+        // Find current active line
+        let idx = -1;
+        for (let i = 0; i < this._synced.length; i++) {
+            if (this._synced[i].time <= cur + 0.3) idx = i;
+            else break;
+        }
+
+        if (idx === this._activeIdx) return;
+        this._activeIdx = idx;
+
+        // Update classes
+        const lines = $('lyrics-scroll').querySelectorAll('.lyric-line');
+        lines.forEach((el, i) => {
+            el.classList.remove('active', 'past');
+            if (i < idx) el.classList.add('past');
+            else if (i === idx) el.classList.add('active');
+        });
+
+        // Auto-scroll active line to center
+        if (idx >= 0) {
+            const activeLine = $(`ll-${idx}`);
+            if (activeLine) {
+                const scroll = $('lyrics-scroll');
+                const lineTop = activeLine.offsetTop;
+                const lineH = activeLine.offsetHeight;
+                const scrollH = scroll.clientHeight;
+                scroll.scrollTop = lineTop - scrollH / 2 + lineH / 2;
+            }
+        }
+    }
+};
+
+/* ── Hook into App.play to reset lyrics ── */
+const _origUpdatePlayerUI = App._updatePlayerUI.bind(App);
+App._updatePlayerUI = function(song) {
+    _origUpdatePlayerUI(song);
+    Lyrics.onTrackChange(song);
+};
 </script>
 </body>
 </html>
