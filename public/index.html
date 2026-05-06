@@ -362,89 +362,182 @@
         .fp-play-btn:active { transform: scale(0.92); }
         .fp-shuffle-active { color: var(--green) !important; }
 
-        /* ========= LYRICS PANEL ========= */
+        /* ========= LYRICS BUTTON (di full player) ========= */
         .fp-lyrics-btn {
             display: flex; align-items: center; justify-content: center; gap: 8px;
-            width: 100%; padding: 12px 0; margin-top: 20px;
+            width: 100%; padding: 13px 0; margin-top: 22px;
             background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.12);
             border-radius: 30px; cursor: pointer;
-            font-size: 12px; font-weight: 800; letter-spacing: 1px;
+            font-size: 12px; font-weight: 800; letter-spacing: 1.5px;
             color: var(--gray-light);
-            transition: background 0.2s, color 0.2s;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .fp-lyrics-btn.active {
-            background: rgba(29,185,84,0.15);
-            border-color: rgba(29,185,84,0.4);
-            color: var(--green);
-        }
+        .fp-lyrics-btn:active { transform: scale(0.97); }
         .fp-lyrics-btn i { font-size: 14px; }
 
-        .lyrics-panel {
-            display: none;
-            margin-top: 8px;
-            height: 260px;
+        /* ========= LYRICS FULL-SCREEN ========= */
+        .lyrics-screen {
+            position: fixed; inset: 0; z-index: 3000;
+            top: 100%;
+            transition: top 0.42s cubic-bezier(0.32,0.72,0,1);
+            display: flex; flex-direction: column;
             overflow: hidden;
-            position: relative;
         }
-        .lyrics-panel.visible { display: block; }
-        .lyrics-panel::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50px;
-            background: linear-gradient(to bottom, rgba(15,15,15,0.95), transparent);
+        .lyrics-screen.open { top: 0; }
+
+        /* Dynamic blurred background behind lyrics */
+        .lyrics-bg {
+            position: absolute; inset: 0; z-index: 0;
+            background: linear-gradient(160deg, #0d2b1a 0%, #0a0a0a 60%, #0d1a2b 100%);
+        }
+        .lyrics-bg-art {
+            position: absolute; inset: -40px; z-index: 0;
+            background-size: cover; background-position: center;
+            filter: blur(60px) brightness(0.3);
+            transform: scale(1.1);
+            opacity: 0.6;
+        }
+
+        /* Header bar */
+        .lyrics-topbar {
+            position: relative; z-index: 2;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 52px 24px 16px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+        }
+        .lyrics-topbar-center {
+            flex: 1; text-align: center;
+        }
+        .lyrics-topbar-center .lyr-song {
+            font-size: 13px; font-weight: 800; color: #fff;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 200px; margin: 0 auto;
+        }
+        .lyrics-topbar-center .lyr-artist {
+            font-size: 11px; color: var(--gray-light); margin-top: 2px;
+        }
+        .lyrics-back-btn {
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1); border-radius: 50%; cursor: pointer;
+            font-size: 18px; color: #fff; flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .lyrics-back-btn:active { background: rgba(255,255,255,0.2); }
+        .lyrics-mini-btn {
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            background: rgba(29,185,84,0.2); border-radius: 50%; cursor: pointer;
+            font-size: 15px; color: var(--green); flex-shrink: 0;
+            border: 1px solid rgba(29,185,84,0.4);
+            transition: background 0.2s;
+        }
+        .lyrics-mini-btn:active { background: rgba(29,185,84,0.4); }
+
+        /* Mini player bar at bottom of lyrics screen */
+        .lyrics-mini-player {
+            position: relative; z-index: 2;
+            display: flex; align-items: center; gap: 14px;
+            padding: 14px 20px 36px;
+            background: linear-gradient(to top, rgba(0,0,0,0.7) 60%, transparent);
+        }
+        .lyr-mini-art {
+            width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+        .lyr-mini-info { flex: 1; min-width: 0; }
+        .lyr-mini-title { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lyr-mini-artist { font-size: 11px; color: var(--gray-light); margin-top: 2px; }
+        .lyr-mini-controls { display: flex; align-items: center; gap: 16px; }
+        .lyr-mini-controls i { font-size: 22px; color: #fff; cursor: pointer; }
+        .lyr-play-btn {
+            width: 44px; height: 44px; border-radius: 50%; background: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #000; cursor: pointer; border: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+        }
+
+        /* Progress bar inside lyrics screen */
+        .lyrics-progress-wrap {
+            position: relative; z-index: 2;
+            padding: 0 20px 4px;
+        }
+        .lyrics-progress-bar {
+            width: 100%; height: 3px; background: rgba(255,255,255,0.15);
+            border-radius: 3px; overflow: hidden;
+        }
+        .lyrics-progress-fill {
+            height: 100%; background: var(--green); width: 0%;
+            transition: width 0.5s linear;
+        }
+        .lyrics-progress-times {
+            display: flex; justify-content: space-between;
+            font-size: 10px; color: var(--gray); margin-top: 5px;
+        }
+
+        /* Scroll area */
+        .lyrics-body {
+            position: relative; z-index: 1;
+            flex: 1; overflow: hidden;
+        }
+        .lyrics-body::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 80px;
+            background: linear-gradient(to bottom, rgba(10,10,10,0.8), transparent);
             z-index: 2; pointer-events: none;
         }
-        .lyrics-panel::after {
-            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px;
-            background: linear-gradient(to top, rgba(15,15,15,0.95), transparent);
+        .lyrics-body::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 80px;
+            background: linear-gradient(to top, rgba(10,10,10,0.8), transparent);
             z-index: 2; pointer-events: none;
         }
         .lyrics-scroll {
             height: 100%; overflow-y: auto; scrollbar-width: none;
-            padding: 50px 4px 60px;
+            padding: 70px 28px 70px;
             scroll-behavior: smooth;
         }
         .lyrics-scroll::-webkit-scrollbar { display: none; }
 
+        /* Lyric lines */
         .lyric-line {
-            font-size: 20px; font-weight: 800;
-            color: rgba(255,255,255,0.25);
-            line-height: 1.5; padding: 6px 0;
-            transition: color 0.4s, transform 0.4s, font-size 0.3s;
+            font-size: 24px; font-weight: 800;
+            color: rgba(255,255,255,0.22);
+            line-height: 1.45; padding: 7px 0;
+            transition: color 0.45s ease, font-size 0.3s ease;
             cursor: pointer;
             text-align: left;
         }
+        .lyric-line:active { opacity: 0.6; }
+        .lyric-line.past { color: rgba(255,255,255,0.42); }
         .lyric-line.active {
             color: #ffffff;
-            font-size: 22px;
+            font-size: 26px;
         }
-        .lyric-line.past {
-            color: rgba(255,255,255,0.45);
-        }
-        .lyric-line:empty { height: 16px; }
+        .lyric-line.empty-line { height: 20px; }
 
         .lyrics-loading {
             display: flex; flex-direction: column; align-items: center;
-            justify-content: center; height: 100%; gap: 12px;
+            justify-content: center; height: 100%; gap: 14px;
             color: var(--gray); font-size: 13px;
         }
         .lyrics-loading .loader-spin { margin: 0; width: 28px; height: 28px; border-width: 2px; }
 
         .lyrics-empty {
             display: flex; flex-direction: column; align-items: center;
-            justify-content: center; height: 100%; gap: 10px;
-            color: var(--gray); font-size: 13px; text-align: center; padding: 20px;
+            justify-content: center; height: 100%; gap: 12px;
+            color: var(--gray); font-size: 14px; text-align: center; padding: 30px;
         }
-        .lyrics-empty i { font-size: 32px; opacity: 0.3; }
+        .lyrics-empty i { font-size: 40px; opacity: 0.25; }
+        .lyrics-empty span { line-height: 1.6; }
 
-        .lyrics-plain {
-            font-size: 15px; font-weight: 500; line-height: 1.9;
-            color: rgba(255,255,255,0.7); padding: 0 4px;
+        .lyrics-plain-wrap { }
+        .lyric-plain-line {
+            display: block;
+            font-size: 18px; font-weight: 600; line-height: 1.8;
+            color: rgba(255,255,255,0.55); padding: 3px 0;
+            transition: color 0.3s;
         }
-        .lyrics-plain .lyric-plain-line {
-            display: block; padding: 2px 0; transition: color 0.3s;
-        }
-        .lyrics-plain .lyric-plain-line.active { color: #fff; font-weight: 800; }
+        .lyric-plain-line.active { color: #fff; font-weight: 800; font-size: 19px; }
 
         /* ── Stream status badge ── */
         #stream-status {
@@ -729,18 +822,65 @@
         </div>
 
         <!-- LYRICS BUTTON -->
-        <button class="fp-lyrics-btn" id="fp-lyrics-btn" onclick="Lyrics.toggle()">
+        <button class="fp-lyrics-btn" id="fp-lyrics-btn" onclick="Lyrics.open()">
             <i class="fas fa-align-left"></i> LYRICS
         </button>
+    </div>
+</div>
 
-        <!-- LYRICS PANEL -->
-        <div class="lyrics-panel" id="lyrics-panel">
-            <div class="lyrics-scroll" id="lyrics-scroll">
-                <div class="lyrics-loading" id="lyrics-loading">
-                    <div class="loader-spin"></div>
-                    <span>Mencari lirik...</span>
-                </div>
+<!-- ===== LYRICS FULL SCREEN ===== -->
+<div class="lyrics-screen" id="lyrics-screen">
+    <div class="lyrics-bg"></div>
+    <div class="lyrics-bg-art" id="lyr-bg-art"></div>
+
+    <!-- Top bar -->
+    <div class="lyrics-topbar">
+        <div class="lyrics-back-btn" onclick="Lyrics.close()">
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="lyrics-topbar-center">
+            <div class="lyr-song" id="lyr-song-title">—</div>
+            <div class="lyr-artist" id="lyr-song-artist">—</div>
+        </div>
+        <div class="lyrics-mini-btn" onclick="Lyrics.close(); App.closeFullPlayer();" title="Mini player">
+            <i class="fas fa-compress-alt"></i>
+        </div>
+    </div>
+
+    <!-- Lyrics scrollable area -->
+    <div class="lyrics-body">
+        <div class="lyrics-scroll" id="lyrics-scroll">
+            <div class="lyrics-loading">
+                <div class="loader-spin"></div>
+                <span>Mencari lirik...</span>
             </div>
+        </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="lyrics-progress-wrap">
+        <div class="lyrics-progress-bar">
+            <div class="lyrics-progress-fill" id="lyr-progress-fill"></div>
+        </div>
+        <div class="lyrics-progress-times">
+            <span id="lyr-now">0:00</span>
+            <span id="lyr-total">0:00</span>
+        </div>
+    </div>
+
+    <!-- Mini player bar -->
+    <div class="lyrics-mini-player">
+        <img src="" id="lyr-mini-art" class="lyr-mini-art">
+        <div class="lyr-mini-info">
+            <div class="lyr-mini-title" id="lyr-mini-title">—</div>
+            <div class="lyr-mini-artist" id="lyr-mini-artist">—</div>
+        </div>
+        <div class="lyr-mini-controls">
+            <i class="fas fa-step-backward" onclick="App.prevTrack()"></i>
+            <button class="lyr-play-btn" id="lyr-play-btn" onclick="App.togglePlay()">
+                <i class="fas fa-play" id="lyr-play-icon"></i>
+            </button>
+            <i class="fas fa-step-forward" onclick="App.nextTrack()"></i>
         </div>
     </div>
 </div>
@@ -1242,58 +1382,92 @@ const App = {
 document.addEventListener('DOMContentLoaded', App.init);
 
 /* ══════════════════════════════════════════
-   LYRICS MODULE — Spotify-style synced lyrics
+   LYRICS MODULE — Full-screen Spotify-style
    API: https://api.danzy.web.id/api/search/lyrics?q=
 ══════════════════════════════════════════ */
 const Lyrics = {
-    _open: false,
-    _synced: [],       // [{time, text}]
-    _plain: [],        // string[]
+    _isOpen: false,
+    _synced: [],
+    _plain: [],
     _hasSynced: false,
     _timer: null,
-    _currentTrack: null,
+    _progressTimer: null,
     _activeIdx: -1,
+    _loadedFor: null,   // videoId of track we loaded lyrics for
+    _fetching: false,
 
-    /* ── Toggle panel ── */
-    toggle() {
-        this._open = !this._open;
-        const panel = $('lyrics-panel');
-        const btn = $('fp-lyrics-btn');
-        panel.classList.toggle('visible', this._open);
-        btn.classList.toggle('active', this._open);
-        if (this._open) {
-            // If new track or not loaded yet
-            if (State.currentTrack && State.currentTrack !== this._currentTrack) {
-                this._currentTrack = State.currentTrack;
-                this.fetch(State.currentTrack.title + ' ' + State.currentTrack.artist);
-            }
-            if (this._hasSynced) this._startSyncTimer();
-        } else {
-            this._stopSyncTimer();
+    /* ── Open lyrics screen ── */
+    open() {
+        this._isOpen = true;
+        $('lyrics-screen').classList.add('open');
+        // Update header info
+        if (State.currentTrack) {
+            this._updateHeader(State.currentTrack);
         }
+        // Load lyrics if needed (always fetch for current track if not loaded)
+        const vid = State.currentTrack ? State.currentTrack.videoId : null;
+        if (vid && vid !== this._loadedFor) {
+            this._loadedFor = vid;
+            this.fetch(State.currentTrack.title + ' ' + State.currentTrack.artist);
+        }
+        this._startProgressTimer();
+        if (this._hasSynced) this._startSyncTimer();
+    },
+
+    /* ── Close lyrics screen ── */
+    close() {
+        this._isOpen = false;
+        $('lyrics-screen').classList.remove('open');
+        this._stopSyncTimer();
+        this._stopProgressTimer();
+    },
+
+    /* ── Update header & mini player info ── */
+    _updateHeader(song) {
+        $('lyr-song-title').textContent = song.title || '—';
+        $('lyr-song-artist').textContent = song.artist || '—';
+        $('lyr-mini-title').textContent = song.title || '—';
+        $('lyr-mini-artist').textContent = song.artist || '—';
+        $('lyr-mini-art').src = song.thumbnail || '';
+        // Set blurred background
+        $('lyr-bg-art').style.backgroundImage = `url(${song.thumbnail})`;
     },
 
     /* ── Called when a new song plays ── */
     onTrackChange(song) {
-        this._currentTrack = song;
         this._synced = [];
         this._plain = [];
         this._hasSynced = false;
         this._activeIdx = -1;
         this._stopSyncTimer();
-        // Reset panel content
-        $('lyrics-scroll').innerHTML = `
-            <div class="lyrics-loading" id="lyrics-loading">
-                <div class="loader-spin"></div>
-                <span>Mencari lirik...</span>
-            </div>`;
-        if (this._open) {
+        this._updateHeader(song);
+        this._syncPlayIcon();
+
+        const vid = song.videoId;
+        if (this._isOpen && vid !== this._loadedFor) {
+            this._loadedFor = vid;
             this.fetch(song.title + ' ' + song.artist);
+        } else {
+            // Reset display to loading so it shows when opened next
+            this._loadedFor = null;
+            $('lyrics-scroll').innerHTML = `
+                <div class="lyrics-loading">
+                    <div class="loader-spin"></div>
+                    <span>Mencari lirik...</span>
+                </div>`;
         }
+    },
+
+    /* ── Sync play icon state ── */
+    _syncPlayIcon() {
+        const icon = $('lyr-play-icon');
+        if (icon) icon.className = State.playing ? 'fas fa-pause' : 'fas fa-play';
     },
 
     /* ── Fetch from Danzy API ── */
     async fetch(query) {
+        if (this._fetching) return;
+        this._fetching = true;
         $('lyrics-scroll').innerHTML = `
             <div class="lyrics-loading">
                 <div class="loader-spin"></div>
@@ -1307,64 +1481,63 @@ const Lyrics = {
 
             if (!json.status || !json.result || json.result.length === 0) {
                 this._renderEmpty('Lirik tidak ditemukan 🎵');
+                this._fetching = false;
                 return;
             }
 
-            // Pick best result: prefer one with syncedLyrics
+            // Best result: prefer synced, match track name closely
             let chosen = json.result.find(r => r.syncedLyrics) || json.result[0];
 
             if (chosen.syncedLyrics) {
                 this._parseSynced(chosen.syncedLyrics);
                 this._renderSynced();
                 this._hasSynced = true;
-                if (this._open) this._startSyncTimer();
+                this._activeIdx = -1;
+                if (this._isOpen) this._startSyncTimer();
             } else if (chosen.plainLyrics) {
                 this._parsePlain(chosen.plainLyrics);
                 this._renderPlain();
                 this._hasSynced = false;
             } else {
-                this._renderEmpty('Lirik tidak tersedia');
+                this._renderEmpty('Lirik tidak tersedia untuk lagu ini');
             }
         } catch(e) {
-            this._renderEmpty('Gagal memuat lirik 😢');
+            this._renderEmpty('Gagal memuat lirik 😢\nCoba lagi nanti');
         }
+        this._fetching = false;
     },
 
-    /* ── Parse synced LRC format ── */
+    /* ── Parse synced LRC ── */
     _parseSynced(raw) {
         this._synced = [];
-        const lines = raw.split('\n');
         const regex = /\[(\d+):(\d+\.\d+)\]\s*(.*)/;
-        lines.forEach(line => {
+        raw.split('\n').forEach(line => {
             const m = line.match(regex);
             if (m) {
-                const mins = parseInt(m[1]);
-                const secs = parseFloat(m[2]);
-                const time = mins * 60 + secs;
+                const time = parseInt(m[1]) * 60 + parseFloat(m[2]);
                 this._synced.push({ time, text: m[3] });
             }
         });
     },
 
-    /* ── Parse plain lyrics ── */
     _parsePlain(raw) {
         this._plain = raw.split('\n');
     },
 
-    /* ── Render synced lines ── */
     _renderSynced() {
-        const scroll = $('lyrics-scroll');
-        scroll.innerHTML = this._synced.map((l, i) =>
-            `<div class="lyric-line" id="ll-${i}" onclick="Lyrics._seek(${l.time})">${l.text || ''}</div>`
+        $('lyrics-scroll').innerHTML = this._synced.map((l, i) =>
+            l.text
+                ? `<div class="lyric-line" id="ll-${i}" onclick="Lyrics._seek(${l.time})">${l.text}</div>`
+                : `<div class="lyric-line empty-line" id="ll-${i}"></div>`
         ).join('');
     },
 
-    /* ── Render plain lyrics ── */
     _renderPlain() {
-        const scroll = $('lyrics-scroll');
-        scroll.innerHTML = `<div class="lyrics-plain">${
+        $('lyrics-scroll').innerHTML = `<div class="lyrics-plain-wrap">${
             this._plain.map((l, i) =>
-                `<span class="lyric-plain-line" id="lp-${i}">${l}</span>`
+                l.trim()
+                    ? `<span class="lyric-plain-line" id="lp-${i}">${l}</span>`
+                    : `<span class="lyric-plain-line" id="lp-${i}" style="display:block;height:14px"></span>`
             ).join('')
         }</div>`;
     },
@@ -1377,40 +1550,30 @@ const Lyrics = {
             </div>`;
     },
 
-    /* ── Seek song to lyric time ── */
     _seek(time) {
-        if (ytPlayer && ytPlayer.seekTo) {
-            ytPlayer.seekTo(time, true);
-        }
+        if (ytPlayer && ytPlayer.seekTo) ytPlayer.seekTo(time, true);
     },
 
-    /* ── Sync timer ── */
+    /* ── Sync timer (highlights active line) ── */
     _startSyncTimer() {
         this._stopSyncTimer();
-        this._timer = setInterval(() => this._tick(), 300);
+        this._timer = setInterval(() => this._tick(), 250);
     },
-
-    _stopSyncTimer() {
-        clearInterval(this._timer);
-        this._timer = null;
-    },
+    _stopSyncTimer() { clearInterval(this._timer); this._timer = null; },
 
     _tick() {
         if (!this._hasSynced || !this._synced.length) return;
         if (!ytPlayer || !ytPlayer.getCurrentTime) return;
         const cur = ytPlayer.getCurrentTime();
 
-        // Find current active line
         let idx = -1;
         for (let i = 0; i < this._synced.length; i++) {
-            if (this._synced[i].time <= cur + 0.3) idx = i;
+            if (this._synced[i].time <= cur + 0.2) idx = i;
             else break;
         }
-
         if (idx === this._activeIdx) return;
         this._activeIdx = idx;
 
-        // Update classes
         const lines = $('lyrics-scroll').querySelectorAll('.lyric-line');
         lines.forEach((el, i) => {
             el.classList.remove('active', 'past');
@@ -1418,21 +1581,34 @@ const Lyrics = {
             else if (i === idx) el.classList.add('active');
         });
 
-        // Auto-scroll active line to center
         if (idx >= 0) {
-            const activeLine = $(`ll-${idx}`);
-            if (activeLine) {
-                const scroll = $('lyrics-scroll');
-                const lineTop = activeLine.offsetTop;
-                const lineH = activeLine.offsetHeight;
-                const scrollH = scroll.clientHeight;
-                scroll.scrollTop = lineTop - scrollH / 2 + lineH / 2;
+            const el = $(`ll-${idx}`);
+            if (el) {
+                const sc = $('lyrics-scroll');
+                sc.scrollTop = el.offsetTop - sc.clientHeight / 2 + el.offsetHeight / 2;
             }
         }
-    }
+    },
+
+    /* ── Progress timer (updates mini progress bar & time) ── */
+    _startProgressTimer() {
+        this._stopProgressTimer();
+        this._progressTimer = setInterval(() => {
+            if (!ytPlayer || !ytPlayer.getDuration) return;
+            const dur = ytPlayer.getDuration();
+            const cur = ytPlayer.getCurrentTime();
+            if (!dur) return;
+            const pct = (cur / dur) * 100;
+            $('lyr-progress-fill').style.width = pct + '%';
+            $('lyr-now').textContent = fmtTime(cur);
+            $('lyr-total').textContent = fmtTime(dur);
+            this._syncPlayIcon();
+        }, 500);
+    },
+    _stopProgressTimer() { clearInterval(this._progressTimer); this._progressTimer = null; },
 };
 
-/* ── Hook into App.play to reset lyrics ── */
+/* ── Hook into App._updatePlayerUI ── */
 const _origUpdatePlayerUI = App._updatePlayerUI.bind(App);
 App._updatePlayerUI = function(song) {
     _origUpdatePlayerUI(song);
